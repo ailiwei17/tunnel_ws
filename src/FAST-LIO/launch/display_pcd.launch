@@ -1,0 +1,15 @@
+<launch>
+<!-- Launch file for Livox MID 70 LiDAR -->
+
+	<arg name="rviz" default="true" />
+
+	<param name="file_name" type="string" value="/home/liwei/tunnel_ws/src/FAST-LIO/PCD/generate_cylinder.pcd"/>
+
+    	<node pkg="fast_lio" type="pcd_display" name="pcd_display" output="screen" /> 
+
+	<group if="$(arg rviz)">
+	<node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find fast_lio)/rviz_cfg/loam_livox_with_octo.rviz" />
+	</group>
+    	
+
+</launch>
