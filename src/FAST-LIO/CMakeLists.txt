@@ -56,6 +56,7 @@ find_package(catkin REQUIRED COMPONENTS
   eigen_conversions
   move_base_msgs
   actionlib
+  visualization_msgs
 )
 
 find_package(Eigen3 REQUIRED)
@@ -95,8 +96,7 @@ target_include_directories(fastlio_mapping PRIVATE ${PYTHON_INCLUDE_DIRS})
 add_executable(map_generate tools/map_generate.cpp)
 target_link_libraries(map_generate 
 				 ${catkin_LIBRARIES}
-                                 ${PCL_LIBRARIES}
-                                 ${CERES_LIBRARIES})  
+                                 ${PCL_LIBRARIES})  
 add_executable(pcd_display tools/pcd_display.cpp)
 target_link_libraries(pcd_display 
 				 ${catkin_LIBRARIES}

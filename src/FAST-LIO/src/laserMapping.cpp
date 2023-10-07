@@ -133,10 +133,6 @@ vect3 pos_lid;
 
 nav_msgs::Path path;
 nav_msgs::Odometry odomAftMapped;
-/******* Modified For Planner *******/
-nav_msgs::Odometry last_odom;
-bool init_last_odom = false;
-/******* Modified For Planner *******/
 geometry_msgs::Quaternion geoQuat;
 geometry_msgs::PoseStamped msg_body_pose;
 
@@ -591,23 +587,6 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped)
     odomAftMapped.child_frame_id = "body";
     odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time);// ros::Time().fromSec(lidar_end_time);
     set_posestamp(odomAftMapped.pose);
-    /******* Modified For Planner *******/
-    if(!init_last_odom)
-    {
-        last_odom = odomAftMapped;
-        init_last_odom = true;
-    }
-    else
-    {
-        double duration = (odomAftMapped.header.stamp-last_odom.header.stamp).toSec();
-        odomAftMapped.twist.twist.linear.x = (odomAftMapped.pose.pose.position.x - last_odom.pose.pose.position.x)/duration; 
-        odomAftMapped.twist.twist.linear.y = (odomAftMapped.pose.pose.position.y - last_odom.pose.pose.position.y)/duration; 
-        double new_yaw = tf::getYaw(odomAftMapped.pose.pose.orientation);
-        double last_yaw = tf::getYaw(last_odom.pose.pose.orientation);
-        odomAftMapped.twist.twist.angular.z = (new_yaw - last_yaw)/duration;
-        last_odom = odomAftMapped;
-    }
-    /******* Modified For Planner *******/
     pubOdomAftMapped.publish(odomAftMapped);
     auto P = kf.get_P();
     for (int i = 0; i < 6; i ++)
@@ -807,6 +786,7 @@ int main(int argc, char** argv)
     nh.param<int>("pcd_save/interval", pcd_save_interval, -1);
     nh.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
     nh.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
+    cout<<"p_pre->lidar_type "<<p_pre->lidar_type<<endl;
     
     path.header.stamp    = ros::Time::now();
     path.header.frame_id ="camera_init";
@@ -915,7 +895,6 @@ int main(int argc, char** argv)
 
             /*** downsample the feature points in a scan ***/
             downSizeFilterSurf.setInputCloud(feats_undistort);
-            /******* Modified For Moving Object *******/
             downSizeFilterSurf.filter(*feats_down_body);
             t1 = omp_get_wtime();
             feats_down_size = feats_down_body->points.size();
@@ -982,8 +961,6 @@ int main(int argc, char** argv)
 
             double t_update_end = omp_get_wtime();
 
-            /******* Modified For Rosbag *******/
-            lidar_end_time = ros::Time::now().toSec();
             /******* Publish odometry *******/
             publish_odometry(pubOdomAftMapped);
 
