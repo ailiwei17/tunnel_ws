@@ -9,7 +9,9 @@
 	<param name="voxel_size_x" type="double" value="0.5" />
 	<param name="voxel_size_y" type="double" value="0.5" />
 	<param name="voxel_size_z" type="double" value="0.1" />
-    <node pkg="fast_lio" type="map_generate" name="map_generate" output="screen" /> 
-   	
-
+    	<node pkg="fast_lio" type="map_generate" name="map_generate" output="screen" /> 
+    	<arg name="rviz" default="true" />
+    	<group if="$(arg rviz)">
+	<node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find fast_lio)/rviz_cfg/3d_bbox.rviz" />
+	</group>
 </launch>

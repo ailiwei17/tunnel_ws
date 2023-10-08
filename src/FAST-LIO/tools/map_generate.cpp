@@ -182,31 +182,90 @@ class MapGenerate
     //   std::string all_points_dir(std::string(std::string(ROOT_DIR) + "PCD/") + file_name);
     //   writer.write<pcl::PointXYZ> (all_points_dir, *cloud_cylinder, false);
     // }
-    else{
-      pcl::MomentOfInertiaEstimation <pcl::PointXYZ> feature_extractor;
-      feature_extractor.setInputCloud (cloud);
-      feature_extractor.compute ();
-      pcl::PointXYZ min_point_OBB;
-      pcl::PointXYZ max_point_OBB;
-      pcl::PointXYZ position_OBB;
-      Eigen::Matrix3f rotational_matrix_OBB;
-      feature_extractor.getOBB (min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
-        // Set the position and orientation of the bounding box
-      bbox_marker.pose.position.x = position_OBB.x;
-      bbox_marker.pose.position.y = position_OBB.y;
-      bbox_marker.pose.position.z = position_OBB.z;
-      // Set the orientation as a Quaternion
-      Eigen::Quaternionf rotation_quaternion(rotational_matrix_OBB);
-      bbox_marker.pose.orientation.x = rotation_quaternion.x();;
-      bbox_marker.pose.orientation.y = rotation_quaternion.y();;
-      bbox_marker.pose.orientation.z = rotation_quaternion.z();;
-      bbox_marker.pose.orientation.w = rotation_quaternion.w();;
+  }
+  void generateCylinderPointCloud(const double z_resolution,const double theta_num,const double diff_radius)
+  {
+    // 先构建轴线为Z轴的圆柱面点云
+    int Num = theta_num;
+    float inter = 2.0 * M_PI / Num;
+    Eigen::RowVectorXd vectorx(Num), vectory(Num), vectorz(Num);
+    Eigen::RowVector3d axis(coefficients_cylinder->values[3], coefficients_cylinder->values[4], coefficients_cylinder->values[5]);
+    float length = axis.norm();
+    vectorx.setLinSpaced(Num, 0, Num - 1);
+    vectory = vectorx;
+    float x0, y0, z0,r0;
+    x0 = coefficients_cylinder->values[0];
+    y0 = coefficients_cylinder->values[1];
+    z0 = coefficients_cylinder->values[2];
+    r0 = coefficients_cylinder->values[6] + diff_radius;
 
-      // Set the scale of the bounding box
-      bbox_marker.scale.x = max_point_OBB.x - min_point_OBB.x;
-      bbox_marker.scale.y = max_point_OBB.y - min_point_OBB.y;
-      bbox_marker.scale.z = max_point_OBB.z - min_point_OBB.z;
-    } 
+    pcl::PointCloud<pcl::PointXYZINormal>::Ptr raw(new pcl::PointCloud<pcl::PointXYZINormal>);
+    pcl::PointCloud<pcl::PointXYZINormal>::Ptr tmp(new pcl::PointCloud<pcl::PointXYZINormal>);
+    pcl::PointCloud<pcl::PointXYZINormal>::Ptr final(new pcl::PointCloud<pcl::PointXYZINormal>);
+
+    for (float z(-10); z <= 10; z += z_resolution)
+    {
+      for (auto i = 0; i < Num; ++i) {
+        pcl::PointXYZINormal point;
+        point.x = r0 * cos(vectorx[i] * inter);
+        point.y = r0 * sin(vectory[i] * inter);
+        point.z = z;
+        point.normal_x = r0;
+        raw->points.push_back(point);
+      }
+      pcl::PointXYZINormal point;
+      point.x = 0;
+      point.y = 0;
+      point.z = z;
+      raw->points.push_back(point);
+    }
+    
+    raw->width = (int)raw->size();
+    raw->height = 1;
+    raw->is_dense = false;
+
+
+    // 点云旋转 Z轴转到axis
+    Eigen::RowVector3d  Z(0.0, 0.0, 0.1), T0(0, 0, 0), T(coefficients_cylinder->values[0], coefficients_cylinder->values[1], coefficients_cylinder->values[2]);
+    Eigen::Matrix3d R;
+    Eigen::Matrix3d E = Eigen::MatrixXd::Identity(3, 3);
+    Eigen::Matrix4d Rotate,Translation;
+    R = Eigen::Quaterniond::FromTwoVectors(Z, axis).toRotationMatrix();
+    Rotate.setIdentity();
+    Translation.setIdentity();
+
+    // 旋转
+    Rotate.block<3, 3>(0, 0) = R;
+    Rotate.block<3, 1>(0, 3) = T;
+    pcl::transformPointCloud(*raw, *tmp, Rotate);
+
+    // 筛选
+    pcl::PointXYZ min_pt, max_pt;
+    pcl::getMinMax3D(*cloud_cylinder, min_pt, max_pt);
+
+    pcl::MomentOfInertiaEstimation <pcl::PointXYZ> feature_extractor;
+    feature_extractor.setInputCloud (cloud_cylinder);
+    feature_extractor.compute ();
+    pcl::PointXYZ min_point_OBB;
+    pcl::PointXYZ max_point_OBB;
+    pcl::PointXYZ position_OBB;
+    Eigen::Matrix3f rotational_matrix_OBB;
+    feature_extractor.getOBB (min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
+    // Set the position and orientation of the bounding box
+    bbox_marker.pose.position.x = position_OBB.x;
+    bbox_marker.pose.position.y = position_OBB.y;
+    bbox_marker.pose.position.z = position_OBB.z;
+    // Set the orientation as a Quaternion
+    Eigen::Quaternionf rotation_quaternion(rotational_matrix_OBB);
+    bbox_marker.pose.orientation.x = rotation_quaternion.x();;
+    bbox_marker.pose.orientation.y = rotation_quaternion.y();;
+    bbox_marker.pose.orientation.z = rotation_quaternion.z();;
+    bbox_marker.pose.orientation.w = rotation_quaternion.w();;
+
+    // Set the scale of the bounding box
+    bbox_marker.scale.x = max_point_OBB.x - min_point_OBB.x;
+    bbox_marker.scale.y = max_point_OBB.y - min_point_OBB.y;
+    bbox_marker.scale.z = max_point_OBB.z - min_point_OBB.z; 
   }
 };
 
