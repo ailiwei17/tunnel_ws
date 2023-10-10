@@ -84,7 +84,7 @@ class MapGenerate
         bbox_marker.action = visualization_msgs::Marker::ADD;
         bbox_marker.scale.x = 0.01; // 线的宽度
         bbox_marker.id = 0;
-        bbox_marker.type = visualization_msgs::Marker::CUBE;
+        bbox_marker.type = visualization_msgs::Marker::CYLINDER;
         // Set the color (RGBA) of the bounding box
         bbox_marker.color.r = 1.0;
         bbox_marker.color.g = 0.0;
@@ -137,10 +137,6 @@ class MapGenerate
     extract.setIndices(inliers_plane);
     extract.setNegative(false);
     extract.filter(*cloud_plane);
-    // pcl::PCDWriter writer;
-    // std::string file_name = std::string("plane.pcd");
-    // std::string all_points_dir(std::string(std::string(ROOT_DIR) + "PCD/") + file_name);
-    // writer.write<pcl::PointXYZ> (all_points_dir, *cloud, false);
   }
 
   void remove_plane()
@@ -273,19 +269,20 @@ class MapGenerate
         bbox_marker.pose.position.y = position_OBB.y;
         bbox_marker.pose.position.z = position_OBB.z;
         // Set the orientation as a Quaternion
-        Eigen::Quaternionf rotation_quaternion(rotational_matrix_OBB);
+        Eigen::Matrix3f adjusted_rotational_matrix;
+        adjusted_rotational_matrix.col(0) = rotational_matrix_OBB.col(1);
+        adjusted_rotational_matrix.col(1) = rotational_matrix_OBB.col(2);
+        adjusted_rotational_matrix.col(2) = rotational_matrix_OBB.col(0);
+        Eigen::Quaternionf rotation_quaternion(adjusted_rotational_matrix);
         bbox_marker.pose.orientation.x = rotation_quaternion.x();;
         bbox_marker.pose.orientation.y = rotation_quaternion.y();;
         bbox_marker.pose.orientation.z = rotation_quaternion.z();;
         bbox_marker.pose.orientation.w = rotation_quaternion.w();;
 
         // Set the scale of the bounding box
-        std::cout << max_point_OBB.x - min_point_OBB.x << std::endl;
-        bbox_marker.scale.x = max_point_OBB.x - min_point_OBB.x;
-        std::cout << max_point_OBB.y - min_point_OBB.y << std::endl;
+        bbox_marker.scale.x = max_point_OBB.z - min_point_OBB.z; 
         bbox_marker.scale.y = max_point_OBB.y - min_point_OBB.y;
-        std::cout << max_point_OBB.z - min_point_OBB.z << std::endl;
-        bbox_marker.scale.z = max_point_OBB.z - min_point_OBB.z; 
+        bbox_marker.scale.z = max_point_OBB.x - min_point_OBB.x;
         marker_pub.publish(bbox_marker);
       }
     }
