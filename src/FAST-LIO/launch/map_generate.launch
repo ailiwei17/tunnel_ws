@@ -6,6 +6,7 @@
 	<param name="min_y" type="double" value="-2.0" />
 	<param name="max_z" type="double" value="3.0" />
 	<param name="min_z" type="double" value="0.2" />
+	<param name="diff_radius" type="double" value="0.05" />
 	<param name="voxel_size_x" type="double" value="0.5" />
 	<param name="voxel_size_y" type="double" value="0.5" />
 	<param name="voxel_size_z" type="double" value="0.1" />
