@@ -38,32 +38,37 @@ typedef pcl::PointXYZ PointT;
 
 class MapGenerate {
 public:
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
   pcl::NormalEstimation<PointT, pcl::Normal> ne;
   pcl::SACSegmentationFromNormals<PointT, pcl::Normal> seg;
   pcl::ExtractIndices<PointT> extract;
   pcl::ExtractIndices<pcl::Normal> extract_normals;
   pcl::search::KdTree<PointT>::Ptr tree;
 
-  pcl::PointCloud<PointT>::Ptr cloud_filtered;
-  pcl::PointCloud<pcl::Normal>::Ptr cloud_normals;
-  pcl::PointCloud<PointT>::Ptr cloud_filtered2;
-  pcl::PointCloud<pcl::Normal>::Ptr cloud_normals2;
-  pcl::ModelCoefficients::Ptr coefficients_plane, coefficients_cylinder;
-  pcl::PointIndices::Ptr inliers_plane, inliers_cylinder;
-
-  pcl::PointCloud<PointT>::Ptr cloud_plane;
-  pcl::PointCloud<PointT>::Ptr cloud_cylinder;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
   pcl::PointCloud<PointT>::Ptr accumulated_cloud;
+
+  pcl::PointCloud<PointT>::Ptr stable_cloud_filtered, moving_cloud_filtered;
+  pcl::PointCloud<pcl::Normal>::Ptr stable_cloud_normals, moving_cloud_normals;
+  pcl::PointCloud<PointT>::Ptr stable_cloud_filtered2, moving_cloud_filtered2;
+  pcl::PointCloud<pcl::Normal>::Ptr stable_cloud_normals2, moving_cloud_normals2;
+  pcl::ModelCoefficients::Ptr stable_coefficients_plane,
+      stable_coefficients_cylinder, moving_coefficients_plane, moving_coefficients_cylinder;
+  pcl::PointIndices::Ptr stable_inliers_plane, stable_inliers_cylinder, moving_inliers_plane, moving_inliers_cylinder;
+
+  pcl::PointCloud<PointT>::Ptr stable_cloud_plane, stable_cloud_cylinder, moving_cloud_plane, moving_cloud_cylinder;
+
+  visualization_msgs::Marker stable_bbox_marker, moving_bbox_marker;
+
   ros::NodeHandle nh;
   // 直通
   double stable_min_x, stable_max_x, stable_min_y, stable_max_y, stable_min_z,
       stable_max_z;
-  // 体素
-  float voxel_size_x, voxel_size_y, voxel_size_z;
+  double moving_min_x, moving_max_x, moving_min_y, moving_max_y, moving_min_z,
+      moving_max_z;
+
   ros::Subscriber pt_sub;
   ros::Publisher marker_pub;
-  visualization_msgs::Marker bbox_marker;
+  
   int point_cloud_count = 0;
 
   // 拟合参数
@@ -81,34 +86,68 @@ public:
 
     // 当接收到十次点云后执行操作
     if (point_cloud_count >= 20) {
-      bbox_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
-      bbox_marker.header.stamp = msg->header.stamp;
-      bbox_marker.action = visualization_msgs::Marker::ADD;
-      bbox_marker.scale.x = 0.01; // 线的宽度
-      bbox_marker.id = 0;
-      bbox_marker.type = visualization_msgs::Marker::CYLINDER;
+      stable_bbox_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
+      stable_bbox_marker.header.stamp = msg->header.stamp;
+      stable_bbox_marker.action = visualization_msgs::Marker::ADD;
+      stable_bbox_marker.scale.x = 0.01; // 线的宽度
+      stable_bbox_marker.id = 0;
+      stable_bbox_marker.type = visualization_msgs::Marker::CYLINDER;
       // Set the color (RGBA) of the bounding box
-      bbox_marker.color.r = 1.0;
-      bbox_marker.color.g = 0.0;
-      bbox_marker.color.b = 0.0;
-      bbox_marker.color.a = 0.5; // Set the transparency
+      stable_bbox_marker.color.r = 1.0;
+      stable_bbox_marker.color.g = 0.0;
+      stable_bbox_marker.color.b = 0.0;
+      stable_bbox_marker.color.a = 1.0; // Set the transparency
 
-      // 调用cloudPre()函数
-      cloudPre(accumulated_cloud, cloud_filtered, stable_min_x, stable_max_x,
-               stable_min_y, stable_max_y, stable_min_z, stable_max_z);
+      moving_bbox_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
+      moving_bbox_marker.header.stamp = msg->header.stamp;
+      moving_bbox_marker.action = visualization_msgs::Marker::ADD;
+      moving_bbox_marker.scale.x = 0.01; // 线的宽度
+      moving_bbox_marker.id = 1;
+      moving_bbox_marker.type = visualization_msgs::Marker::CYLINDER;
+      // Set the color (RGBA) of the bounding box
+      moving_bbox_marker.color.r = 0.0;
+      moving_bbox_marker.color.g = 0.0;
+      moving_bbox_marker.color.b = 1.0;
+      moving_bbox_marker.color.a = 1.0; // Set the transparency
 
-      // 其他操作
-      normals_estimate(tree, cloud_filtered, cloud_normals);
-      plane_seg(cloud_filtered, cloud_normals, inliers_plane,
-                coefficients_plane);
-      get_plane(cloud_filtered, inliers_plane, cloud_plane);
-      remove_plane(cloud_normals, inliers_plane, cloud_filtered2,
-                   cloud_normals2);
-      cylinder_seg(cloud_filtered2, cloud_normals2, inliers_cylinder,
-                   coefficients_cylinder);
-      get_cylinder(cloud_filtered, cloud_filtered2, inliers_cylinder,
-                   cloud_cylinder);
-      generateCylinderPointCloud(10, 0.3, 8, diff_radius, coefficients_cylinder, cloud_cylinder, bbox_marker);
+      cloudPre(accumulated_cloud, stable_cloud_filtered, stable_min_x,
+               stable_max_x, stable_min_y, stable_max_y, stable_min_z,
+               stable_max_z);
+      normals_estimate(tree, stable_cloud_filtered, stable_cloud_normals);
+      plane_seg(stable_cloud_filtered, stable_cloud_normals,
+                stable_inliers_plane, stable_coefficients_plane);
+      get_plane(stable_cloud_filtered, stable_inliers_plane,
+                stable_cloud_plane);
+      remove_plane(stable_cloud_normals, stable_inliers_plane,
+                   stable_cloud_filtered2, stable_cloud_normals2);
+      cylinder_seg(stable_cloud_filtered2, stable_cloud_normals2,
+                   stable_inliers_cylinder, stable_coefficients_cylinder);
+      get_cylinder(stable_cloud_filtered, stable_cloud_filtered2,
+                   stable_inliers_cylinder, stable_cloud_cylinder);
+      
+
+      cloudPre(accumulated_cloud, moving_cloud_filtered, moving_min_x,
+               moving_max_x, moving_min_y, moving_max_y, moving_min_z,
+               moving_max_z);
+      normals_estimate(tree, moving_cloud_filtered, moving_cloud_normals);
+      plane_seg(moving_cloud_filtered, moving_cloud_normals,
+                moving_inliers_plane, moving_coefficients_plane);
+      get_plane(moving_cloud_filtered, moving_inliers_plane,
+                moving_cloud_plane);
+      remove_plane(moving_cloud_normals, moving_inliers_plane,
+                   moving_cloud_filtered2, moving_cloud_normals2);
+      cylinder_seg(moving_cloud_filtered2, moving_cloud_normals2,
+                   moving_inliers_cylinder, moving_coefficients_cylinder);
+      get_cylinder(moving_cloud_filtered, moving_cloud_filtered2,
+                   moving_inliers_cylinder, moving_cloud_cylinder);
+
+      generateCylinderPointCloud(10, 0.3, 8, diff_radius,
+                                 stable_coefficients_cylinder,
+                                 stable_cloud_cylinder, stable_bbox_marker);
+
+      generateCylinderPointCloud(10, 0.3, 8, diff_radius,
+                                 moving_coefficients_cylinder,
+                                 moving_cloud_cylinder, moving_bbox_marker);
 
       // 重置计数器和累积点云
       point_cloud_count = 0;
@@ -206,13 +245,12 @@ public:
 
     extract.filter(*output_cloud_cylinder);
   }
-  void generateCylinderPointCloud(const double long_length,
-                                  const double z_resolution,
-                                  const double theta_num,
-                                  const double diff_radius,
-                                  pcl::ModelCoefficients::Ptr input_coefficients_cylinder,
-                                  pcl::PointCloud<PointT>::Ptr input_cloud_cylinder,
-                                  visualization_msgs::Marker input_bbox_marker) {
+  void generateCylinderPointCloud(
+      const double long_length, const double z_resolution,
+      const double theta_num, const double diff_radius,
+      pcl::ModelCoefficients::Ptr input_coefficients_cylinder,
+      pcl::PointCloud<PointT>::Ptr input_cloud_cylinder,
+      visualization_msgs::Marker input_bbox_marker) {
     // 先构建轴线为Z轴的圆柱面点云
     int Num = theta_num;
     float inter = 2.0 * M_PI / Num;
@@ -255,7 +293,8 @@ public:
 
     // 点云旋转 Z轴转到axis
     Eigen::RowVector3d Z(0.0, 0.0, 0.1), T0(0, 0, 0),
-        T(input_coefficients_cylinder->values[0], input_coefficients_cylinder->values[1],
+        T(input_coefficients_cylinder->values[0],
+          input_coefficients_cylinder->values[1],
           input_coefficients_cylinder->values[2]);
     Eigen::Matrix3d R;
     Eigen::Matrix3d E = Eigen::MatrixXd::Identity(3, 3);
@@ -321,25 +360,51 @@ MapGenerate::MapGenerate() {
   cloud.reset(new pcl::PointCloud<pcl::PointXYZ>());
   accumulated_cloud.reset(new pcl::PointCloud<pcl::PointXYZ>());
   tree.reset(new pcl::search::KdTree<PointT>());
-  cloud_filtered.reset(new pcl::PointCloud<PointT>);
-  cloud_normals.reset(new pcl::PointCloud<pcl::Normal>);
-  cloud_filtered2.reset(new pcl::PointCloud<PointT>);
-  cloud_normals2.reset(new pcl::PointCloud<pcl::Normal>);
-  coefficients_plane.reset(new pcl::ModelCoefficients);
-  coefficients_cylinder.reset(new pcl::ModelCoefficients);
-  inliers_plane.reset(new pcl::PointIndices);
-  inliers_cylinder.reset(new pcl::PointIndices);
-  cloud_plane.reset(new pcl::PointCloud<PointT>());
-  cloud_cylinder.reset(new pcl::PointCloud<PointT>());
-  nh.param<double>("max_x", stable_max_x, 5.0);
-  nh.param<double>("min_x", stable_min_x, 0.0);
-  nh.param<double>("max_y", stable_max_y, 2.0);
-  nh.param<double>("min_y", stable_min_y, -2.0);
-  nh.param<double>("max_z", stable_max_z, 3.0);
-  nh.param<double>("min_z", stable_min_z, 0.0);
+  stable_cloud_filtered.reset(new pcl::PointCloud<PointT>);
+  stable_cloud_normals.reset(new pcl::PointCloud<pcl::Normal>);
+  stable_cloud_filtered2.reset(new pcl::PointCloud<PointT>);
+  stable_cloud_normals2.reset(new pcl::PointCloud<pcl::Normal>);
+  stable_coefficients_plane.reset(new pcl::ModelCoefficients);
+  stable_coefficients_cylinder.reset(new pcl::ModelCoefficients);
+  stable_inliers_plane.reset(new pcl::PointIndices);
+  stable_inliers_cylinder.reset(new pcl::PointIndices);
+  stable_cloud_plane.reset(new pcl::PointCloud<PointT>());
+  stable_cloud_cylinder.reset(new pcl::PointCloud<PointT>());
+  
+  moving_cloud_filtered.reset(new pcl::PointCloud<PointT>);
+  moving_cloud_normals.reset(new pcl::PointCloud<pcl::Normal>);
+  moving_cloud_filtered2.reset(new pcl::PointCloud<PointT>);
+  moving_cloud_normals2.reset(new pcl::PointCloud<pcl::Normal>);
+  moving_coefficients_plane.reset(new pcl::ModelCoefficients);
+  moving_coefficients_cylinder.reset(new pcl::ModelCoefficients);
+  moving_inliers_plane.reset(new pcl::PointIndices);
+  moving_inliers_cylinder.reset(new pcl::PointIndices);
+  moving_cloud_plane.reset(new pcl::PointCloud<PointT>());
+  moving_cloud_cylinder.reset(new pcl::PointCloud<PointT>());
+
+
+
+  nh.param<double>("stable_max_x", stable_max_x, 5.0);
+  nh.param<double>("stable_min_x", stable_min_x, 0.0);
+  nh.param<double>("stable_max_y", stable_max_y, 2.0);
+  nh.param<double>("stable_min_y", stable_min_y, -2.0);
+  nh.param<double>("stable_max_z", stable_max_z, 3.0);
+  nh.param<double>("stable_min_z", stable_min_z, 0.0);
   nh.param<double>("min_radius", min_radius, 0.2);
   nh.param<double>("max_radius", max_radius, 1.5);
   nh.param<double>("diff_radius", diff_radius, 0.05);
+
+  nh.param<double>("moving_max_x", moving_max_x, 5.0);
+  nh.param<double>("moving_min_x", moving_min_x, 0.0);
+  nh.param<double>("moving_max_y", moving_max_y, 2.0);
+  nh.param<double>("moving_min_y", moving_min_y, -2.0);
+  nh.param<double>("moving_max_z", moving_max_z, 3.0);
+  nh.param<double>("moving_min_z", moving_min_z, 0.0);
+  nh.param<double>("min_radius", min_radius, 0.2);
+  nh.param<double>("max_radius", max_radius, 1.5);
+  nh.param<double>("diff_radius", diff_radius, 0.05);
+
+
   pt_sub = nh.subscribe("/cloud_registered", 1,
                         &MapGenerate::pointCloudCallback, this);
   marker_pub = nh.advertise<visualization_msgs::Marker>("aim", 1);

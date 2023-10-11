@@ -1,15 +1,20 @@
 <launch>
 <!-- Launch file for Livox MID 70 LiDAR -->
-	<param name="max_x" type="double" value="5.0" />
-	<param name="min_x" type="double" value="0.5" />
-	<param name="max_y" type="double" value="2.0" />
-	<param name="min_y" type="double" value="-2.0" />
-	<param name="max_z" type="double" value="3.0" />
-	<param name="min_z" type="double" value="0.2" />
+	<param name="stable_max_x" type="double" value="5.0" />
+	<param name="stable_min_x" type="double" value="0.5" />
+	<param name="stable_max_y" type="double" value="2.0" />
+	<param name="stable_min_y" type="double" value="-2.0" />
+	<param name="stable_max_z" type="double" value="3.0" />
+	<param name="stable_min_z" type="double" value="0.2" />
+	<param name="moving_max_x" type="double" value="5.0" />
+	<param name="moving_min_x" type="double" value="0.5" />
+	<param name="moving_max_y" type="double" value="1.0" />
+	<param name="moving_min_y" type="double" value="0.0" />
+	<param name="moving_max_z" type="double" value="3.0" />
+	<param name="moving_min_z" type="double" value="0.2" />
 	<param name="diff_radius" type="double" value="0.05" />
-	<param name="voxel_size_x" type="double" value="0.5" />
-	<param name="voxel_size_y" type="double" value="0.5" />
-	<param name="voxel_size_z" type="double" value="0.1" />
+	<param name="min_radius" type="double" value="0.2" />
+	<param name="max_radius" type="double" value="1.5" />
     	<node pkg="fast_lio" type="map_generate" name="map_generate" output="screen" /> 
     	<arg name="rviz" default="true" />
     	<group if="$(arg rviz)">
