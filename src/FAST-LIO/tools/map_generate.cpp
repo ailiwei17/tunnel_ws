@@ -338,17 +338,28 @@ public:
         input_bbox_marker.pose.position.x = position_OBB.x;
         input_bbox_marker.pose.position.y = position_OBB.y;
         input_bbox_marker.pose.position.z = position_OBB.z;
-        // Set the orientation as a Quaternion
-        Eigen::Quaternionf rotation_quaternion(rotational_matrix_OBB);
-        input_bbox_marker.pose.orientation.x = rotation_quaternion.x();
-        input_bbox_marker.pose.orientation.y = rotation_quaternion.y();
-        input_bbox_marker.pose.orientation.z = rotation_quaternion.z();
-        input_bbox_marker.pose.orientation.w = rotation_quaternion.w();
+        
+        Eigen::Vector3d axis_vector(input_coefficients_cylinder->values[3],
+                                input_coefficients_cylinder->values[4],
+                                input_coefficients_cylinder->values[5]);
+        Eigen::Vector3d up_vector(0.0, 0.0, -1.0);
+        Eigen::Vector3d right_vector = axis_vector.cross(up_vector);
+        right_vector.normalized();
+        Eigen::Quaterniond q(Eigen::AngleAxisd(-1.0 * std::acos(axis_vector.dot(up_vector)), 
+                                              right_vector));
+        q.normalize();
+
+
+        input_bbox_marker.pose.orientation.x = q.x();
+        input_bbox_marker.pose.orientation.y = q.y();
+        input_bbox_marker.pose.orientation.z = q.z();
+        input_bbox_marker.pose.orientation.w = q.w();
 
         // Set the scale of the bounding box
-        input_bbox_marker.scale.x = max_point_OBB.x - min_point_OBB.x;
-        input_bbox_marker.scale.y = max_point_OBB.y - min_point_OBB.y;
-        input_bbox_marker.scale.z = max_point_OBB.z - min_point_OBB.z;
+        // 局部坐标系
+        input_bbox_marker.scale.x = 2 * r0;
+        input_bbox_marker.scale.y = 2 * r0;
+        input_bbox_marker.scale.z = std::abs(max_point_OBB.x - min_point_OBB.x);
         marker_pub.publish(input_bbox_marker);
       }
     }

@@ -2,13 +2,13 @@
 <!-- Launch file for Livox MID 70 LiDAR -->
 	<param name="stable_max_x" type="double" value="5.0" />
 	<param name="stable_min_x" type="double" value="0.5" />
-	<param name="stable_max_y" type="double" value="2.0" />
-	<param name="stable_min_y" type="double" value="-1.5" />
+	<param name="stable_max_y" type="double" value="1.0" />
+	<param name="stable_min_y" type="double" value="-1.0" />
 	<param name="stable_max_z" type="double" value="3.0" />
 	<param name="stable_min_z" type="double" value="0.2" />
 	<param name="moving_max_x" type="double" value="5.0" />
 	<param name="moving_min_x" type="double" value="0.5" />
-	<param name="moving_max_y" type="double" value="1.0" />
+	<param name="moving_max_y" type="double" value="0.0" />
 	<param name="moving_min_y" type="double" value="-2.5" />
 	<param name="moving_max_z" type="double" value="3.0" />
 	<param name="moving_min_z" type="double" value="0.2" />
