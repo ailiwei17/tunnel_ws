@@ -50,12 +50,16 @@ public:
   pcl::PointCloud<PointT>::Ptr stable_cloud_filtered, moving_cloud_filtered;
   pcl::PointCloud<pcl::Normal>::Ptr stable_cloud_normals, moving_cloud_normals;
   pcl::PointCloud<PointT>::Ptr stable_cloud_filtered2, moving_cloud_filtered2;
-  pcl::PointCloud<pcl::Normal>::Ptr stable_cloud_normals2, moving_cloud_normals2;
+  pcl::PointCloud<pcl::Normal>::Ptr stable_cloud_normals2,
+      moving_cloud_normals2;
   pcl::ModelCoefficients::Ptr stable_coefficients_plane,
-      stable_coefficients_cylinder, moving_coefficients_plane, moving_coefficients_cylinder;
-  pcl::PointIndices::Ptr stable_inliers_plane, stable_inliers_cylinder, moving_inliers_plane, moving_inliers_cylinder;
+      stable_coefficients_cylinder, moving_coefficients_plane,
+      moving_coefficients_cylinder;
+  pcl::PointIndices::Ptr stable_inliers_plane, stable_inliers_cylinder,
+      moving_inliers_plane, moving_inliers_cylinder;
 
-  pcl::PointCloud<PointT>::Ptr stable_cloud_plane, stable_cloud_cylinder, moving_cloud_plane, moving_cloud_cylinder;
+  pcl::PointCloud<PointT>::Ptr stable_cloud_plane, stable_cloud_cylinder,
+      moving_cloud_plane, moving_cloud_cylinder;
 
   visualization_msgs::Marker stable_bbox_marker, moving_bbox_marker;
 
@@ -68,7 +72,7 @@ public:
 
   ros::Subscriber pt_sub;
   ros::Publisher marker_pub;
-  
+
   int point_cloud_count = 0;
 
   // 拟合参数
@@ -124,7 +128,6 @@ public:
                    stable_inliers_cylinder, stable_coefficients_cylinder);
       get_cylinder(stable_cloud_filtered, stable_cloud_filtered2,
                    stable_inliers_cylinder, stable_cloud_cylinder);
-      
 
       cloudPre(accumulated_cloud, moving_cloud_filtered, moving_min_x,
                moving_max_x, moving_min_y, moving_max_y, moving_min_z,
@@ -336,20 +339,16 @@ public:
         input_bbox_marker.pose.position.y = position_OBB.y;
         input_bbox_marker.pose.position.z = position_OBB.z;
         // Set the orientation as a Quaternion
-        Eigen::Matrix3f adjusted_rotational_matrix;
-        adjusted_rotational_matrix.col(0) = rotational_matrix_OBB.col(1);
-        adjusted_rotational_matrix.col(1) = rotational_matrix_OBB.col(2);
-        adjusted_rotational_matrix.col(2) = rotational_matrix_OBB.col(0);
-        Eigen::Quaternionf rotation_quaternion(adjusted_rotational_matrix);
+        Eigen::Quaternionf rotation_quaternion(rotational_matrix_OBB);
         input_bbox_marker.pose.orientation.x = rotation_quaternion.x();
         input_bbox_marker.pose.orientation.y = rotation_quaternion.y();
         input_bbox_marker.pose.orientation.z = rotation_quaternion.z();
         input_bbox_marker.pose.orientation.w = rotation_quaternion.w();
 
         // Set the scale of the bounding box
-        input_bbox_marker.scale.x = max_point_OBB.z - min_point_OBB.z;
+        input_bbox_marker.scale.x = max_point_OBB.x - min_point_OBB.x;
         input_bbox_marker.scale.y = max_point_OBB.y - min_point_OBB.y;
-        input_bbox_marker.scale.z = max_point_OBB.x - min_point_OBB.x;
+        input_bbox_marker.scale.z = max_point_OBB.z - min_point_OBB.z;
         marker_pub.publish(input_bbox_marker);
       }
     }
@@ -370,7 +369,7 @@ MapGenerate::MapGenerate() {
   stable_inliers_cylinder.reset(new pcl::PointIndices);
   stable_cloud_plane.reset(new pcl::PointCloud<PointT>());
   stable_cloud_cylinder.reset(new pcl::PointCloud<PointT>());
-  
+
   moving_cloud_filtered.reset(new pcl::PointCloud<PointT>);
   moving_cloud_normals.reset(new pcl::PointCloud<pcl::Normal>);
   moving_cloud_filtered2.reset(new pcl::PointCloud<PointT>);
@@ -381,8 +380,6 @@ MapGenerate::MapGenerate() {
   moving_inliers_cylinder.reset(new pcl::PointIndices);
   moving_cloud_plane.reset(new pcl::PointCloud<PointT>());
   moving_cloud_cylinder.reset(new pcl::PointCloud<PointT>());
-
-
 
   nh.param<double>("stable_max_x", stable_max_x, 5.0);
   nh.param<double>("stable_min_x", stable_min_x, 0.0);
@@ -404,7 +401,6 @@ MapGenerate::MapGenerate() {
   nh.param<double>("max_radius", max_radius, 1.5);
   nh.param<double>("diff_radius", diff_radius, 0.05);
 
-
   pt_sub = nh.subscribe("/cloud_registered", 1,
                         &MapGenerate::pointCloudCallback, this);
   marker_pub = nh.advertise<visualization_msgs::Marker>("aim", 1);
@@ -414,28 +410,34 @@ void MapGenerate::cloudPre(pcl::PointCloud<PointT>::Ptr input_cloud,
                            pcl::PointCloud<PointT>::Ptr output_cloud,
                            double min_x, double max_x, double min_y,
                            double max_y, double min_z, double max_z) {
+  // 创建一个新的 PointCloud 对象用于存储滤波后的结果
+  pcl::PointCloud<PointT>::Ptr filtered_cloud(new pcl::PointCloud<PointT>);
+
+  // 复制 input_cloud 到 filtered_cloud
+  *filtered_cloud = *input_cloud;
+
   // 点云直通滤波
   pcl::PassThrough<pcl::PointXYZ> pass;
-  pass.setInputCloud(input_cloud);
+  pass.setInputCloud(filtered_cloud);
   pass.setFilterFieldName("x");
   pass.setFilterLimits(min_x, max_x);
-  pass.filter(*input_cloud);
+  pass.filter(*filtered_cloud);
 
-  pass.setInputCloud(input_cloud);
+  pass.setInputCloud(filtered_cloud);
   pass.setFilterFieldName("y");
   pass.setFilterLimits(min_y, max_y);
-  pass.filter(*input_cloud);
+  pass.filter(*filtered_cloud);
 
-  pass.setInputCloud(input_cloud);
+  pass.setInputCloud(filtered_cloud);
   pass.setFilterFieldName("z");
   pass.setFilterLimits(min_z, max_z);
-  pass.filter(*input_cloud);
+  pass.filter(*filtered_cloud);
 
   pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
-  sor.setInputCloud(input_cloud);
+  sor.setInputCloud(filtered_cloud);
   sor.setMeanK(50);
   sor.setStddevMulThresh(1.0);
-  sor.filter(*output_cloud);
+  sor.filter(*output_cloud); // 将结果存储到 output_cloud
 }
 
 int main(int argc, char **argv) {
