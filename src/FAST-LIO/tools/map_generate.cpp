@@ -412,7 +412,7 @@ MapGenerate::MapGenerate() {
   nh.param<double>("max_radius", max_radius, 1.5);
   nh.param<double>("diff_radius", diff_radius, 0.05);
 
-  pt_sub = nh.subscribe("/cloud_registered", 1,
+  pt_sub = nh.subscribe("/livox/lidar", 1,
                         &MapGenerate::pointCloudCallback, this);
   marker_pub = nh.advertise<visualization_msgs::Marker>("aim", 1);
 }

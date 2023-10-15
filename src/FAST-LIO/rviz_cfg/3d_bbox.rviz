@@ -7,8 +7,8 @@ Panels:
         - /Global Options1
         - /Status1
         - /Marker1
-        - /Marker1/Status1
         - /PointCloud21
+        - /PointCloud21/Status1
       Splitter Ratio: 0.5
     Tree Height: 678
   - Class: rviz/Selection
@@ -85,7 +85,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.009999999776482582
       Style: Flat Squares
-      Topic: /cloud_registered
+      Topic: /livox/lidar
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -94,7 +94,7 @@ Visualization Manager:
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: camera_init
+    Fixed Frame: livox_frame
     Frame Rate: 30
   Name: root
   Tools:
@@ -118,7 +118,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 11.199999809265137
+      Distance: 10.511578559875488
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -134,9 +134,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.12039835005998611
+      Pitch: 0.6203977465629578
       Target Frame: <Fixed Frame>
-      Yaw: 4.400414943695068
+      Yaw: 5.740418910980225
     Saved: ~
 Window Geometry:
   Displays:
