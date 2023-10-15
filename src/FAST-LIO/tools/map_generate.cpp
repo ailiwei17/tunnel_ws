@@ -62,6 +62,7 @@ public:
       moving_cloud_plane, moving_cloud_cylinder;
 
   visualization_msgs::Marker stable_bbox_marker, moving_bbox_marker;
+  visualization_msgs::Marker stable_midline_marker, moving_midline_marker;
 
   ros::NodeHandle nh;
   // 直通
@@ -90,6 +91,7 @@ public:
 
     // 当接收到十次点云后执行操作
     if (point_cloud_count >= 20) {
+      // 固定圆柱
       stable_bbox_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
       stable_bbox_marker.header.stamp = msg->header.stamp;
       stable_bbox_marker.action = visualization_msgs::Marker::ADD;
@@ -100,19 +102,44 @@ public:
       stable_bbox_marker.color.r = 1.0;
       stable_bbox_marker.color.g = 0.0;
       stable_bbox_marker.color.b = 0.0;
-      stable_bbox_marker.color.a = 1.0; // Set the transparency
+      stable_bbox_marker.color.a = 0.5; // Set the transparency
 
+      stable_midline_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
+      stable_midline_marker.header.stamp = msg->header.stamp;
+      stable_midline_marker.action = visualization_msgs::Marker::ADD;
+      stable_midline_marker.scale.x = 0.01; // 线的宽度
+      stable_midline_marker.id = 1;
+      stable_midline_marker.type = visualization_msgs::Marker::CYLINDER;
+      // Set the color (RGBA) of the bounding box
+      stable_midline_marker.color.r = 1.0;
+      stable_midline_marker.color.g = 0.0;
+      stable_midline_marker.color.b = 0.0;
+      stable_midline_marker.color.a = 1.0; // Set the transparency
+
+      // 移动
       moving_bbox_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
       moving_bbox_marker.header.stamp = msg->header.stamp;
       moving_bbox_marker.action = visualization_msgs::Marker::ADD;
       moving_bbox_marker.scale.x = 0.01; // 线的宽度
-      moving_bbox_marker.id = 1;
+      moving_bbox_marker.id = 2;
       moving_bbox_marker.type = visualization_msgs::Marker::CYLINDER;
       // Set the color (RGBA) of the bounding box
       moving_bbox_marker.color.r = 0.0;
       moving_bbox_marker.color.g = 0.0;
       moving_bbox_marker.color.b = 1.0;
-      moving_bbox_marker.color.a = 1.0; // Set the transparency
+      moving_bbox_marker.color.a = 0.5; // Set the transparency
+
+      moving_midline_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
+      moving_midline_marker.header.stamp = msg->header.stamp;
+      moving_midline_marker.action = visualization_msgs::Marker::ADD;
+      moving_midline_marker.scale.x = 0.01; // 线的宽度
+      moving_midline_marker.id = 3;
+      moving_midline_marker.type = visualization_msgs::Marker::CYLINDER;
+      // Set the color (RGBA) of the bounding box
+      moving_midline_marker.color.r = 0.0;
+      moving_midline_marker.color.g = 0.0;
+      moving_midline_marker.color.b = 1.0;
+      moving_midline_marker.color.a = 1.0; // Set the transparency
 
       cloudPre(accumulated_cloud, stable_cloud_filtered, stable_min_x,
                stable_max_x, stable_min_y, stable_max_y, stable_min_z,
@@ -146,11 +173,11 @@ public:
 
       generateCylinderPointCloud(10, 0.3, 8, diff_radius,
                                  stable_coefficients_cylinder,
-                                 stable_cloud_cylinder, stable_bbox_marker);
+                                 stable_cloud_cylinder, stable_bbox_marker, stable_midline_marker);
 
       generateCylinderPointCloud(10, 0.3, 8, diff_radius,
                                  moving_coefficients_cylinder,
-                                 moving_cloud_cylinder, moving_bbox_marker);
+                                 moving_cloud_cylinder, moving_bbox_marker, moving_midline_marker);
 
       // 重置计数器和累积点云
       point_cloud_count = 0;
@@ -219,8 +246,6 @@ public:
     seg.setMaxIterations(10000);
     seg.setDistanceThreshold(0.3); // 0.05
     seg.setRadiusLimits(min_radius, max_radius);
-    // seg.setInputCloud(cloud_filtered);
-    // seg.setInputNormals(cloud_normals);
     seg.setInputCloud(input_cloud);
     seg.setInputNormals(input_normals);
 
@@ -253,7 +278,8 @@ public:
       const double theta_num, const double diff_radius,
       pcl::ModelCoefficients::Ptr input_coefficients_cylinder,
       pcl::PointCloud<PointT>::Ptr input_cloud_cylinder,
-      visualization_msgs::Marker input_bbox_marker) {
+      visualization_msgs::Marker input_bbox_marker,
+      visualization_msgs::Marker input_midline_marker) {
     // 先构建轴线为Z轴的圆柱面点云
     int Num = theta_num;
     float inter = 2.0 * M_PI / Num;
@@ -360,7 +386,25 @@ public:
         input_bbox_marker.scale.x = 2 * r0;
         input_bbox_marker.scale.y = 2 * r0;
         input_bbox_marker.scale.z = std::abs(max_point_OBB.x - min_point_OBB.x);
+
         marker_pub.publish(input_bbox_marker);
+
+
+        input_midline_marker.pose.position.x = position_OBB.x;
+        input_midline_marker.pose.position.y = position_OBB.y;
+        input_midline_marker.pose.position.z = position_OBB.z;
+        input_midline_marker.pose.orientation.x = q.x();
+        input_midline_marker.pose.orientation.y = q.y();
+        input_midline_marker.pose.orientation.z = q.z();
+        input_midline_marker.pose.orientation.w = q.w();
+
+        // Set the scale of the bounding box
+        // 局部坐标系
+        input_midline_marker.scale.x = 0.1;
+        input_midline_marker.scale.y = 0.1;
+        input_midline_marker.scale.z = 0.2 * long_length;
+
+        marker_pub.publish(input_midline_marker);
       }
     }
   }
