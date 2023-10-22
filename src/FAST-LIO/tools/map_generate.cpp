@@ -97,7 +97,7 @@ public:
     point_cloud_count++;
 
     // 当接收到十次点云后执行操作
-    if (point_cloud_count >= 20) {
+    if (point_cloud_count >= 10) {
       // 固定圆柱
       stable_bbox_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
       stable_bbox_marker.header.stamp = msg->header.stamp;
