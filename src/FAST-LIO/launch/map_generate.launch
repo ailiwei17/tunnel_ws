@@ -15,6 +15,10 @@
 	<param name="diff_radius" type="double" value="0.05" />
 	<param name="min_radius" type="double" value="0.2" />
 	<param name="max_radius" type="double" value="1.5" />
+	<param name="cylinder_normal_weight" type="double" value="0.1" />
+	<param name="cylinder_distance_threshold" type="double" value="0.05" />
+	<param name="plane_normal_weight" type="double" value="0.5" />
+	<param name="plane_distance_threshold" type="double" value="0.02" />
     	<node pkg="fast_lio" type="map_generate" name="map_generate" output="screen" /> 
     	<arg name="rviz" default="true" />
     	<group if="$(arg rviz)">

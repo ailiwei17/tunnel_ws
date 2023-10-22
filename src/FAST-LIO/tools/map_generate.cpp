@@ -71,6 +71,13 @@ public:
   double moving_min_x, moving_max_x, moving_min_y, moving_max_y, moving_min_z,
       moving_max_z;
 
+  // 拟合
+  double cylinder_normal_weight_;
+  double cylinder_distance_threshold_;
+
+  double plane_normal_weight_;
+  double plane_distance_threshold_;
+
   ros::Subscriber pt_sub;
   ros::Publisher marker_pub;
 
@@ -104,7 +111,8 @@ public:
       stable_bbox_marker.color.b = 0.0;
       stable_bbox_marker.color.a = 0.5; // Set the transparency
 
-      stable_midline_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
+      stable_midline_marker.header.frame_id =
+          msg->header.frame_id; // 设置坐标系
       stable_midline_marker.header.stamp = msg->header.stamp;
       stable_midline_marker.action = visualization_msgs::Marker::ADD;
       stable_midline_marker.scale.x = 0.01; // 线的宽度
@@ -129,7 +137,8 @@ public:
       moving_bbox_marker.color.b = 1.0;
       moving_bbox_marker.color.a = 0.5; // Set the transparency
 
-      moving_midline_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
+      moving_midline_marker.header.frame_id =
+          msg->header.frame_id; // 设置坐标系
       moving_midline_marker.header.stamp = msg->header.stamp;
       moving_midline_marker.action = visualization_msgs::Marker::ADD;
       moving_midline_marker.scale.x = 0.01; // 线的宽度
@@ -141,18 +150,24 @@ public:
       moving_midline_marker.color.b = 1.0;
       moving_midline_marker.color.a = 1.0; // Set the transparency
 
+      
+      visualization_msgs::Marker x_distance_marker = setMarker(msg->header.frame_id, msg->header.stamp, "x", 10, "x");
+      visualization_msgs::Marker z_distance_marker = setMarker(msg->header.frame_id, msg->header.stamp, "z", 11, "z");
+
       cloudPre(accumulated_cloud, stable_cloud_filtered, stable_min_x,
                stable_max_x, stable_min_y, stable_max_y, stable_min_z,
                stable_max_z);
       normals_estimate(tree, stable_cloud_filtered, stable_cloud_normals);
       plane_seg(stable_cloud_filtered, stable_cloud_normals,
-                stable_inliers_plane, stable_coefficients_plane);
+                stable_inliers_plane, stable_coefficients_plane,
+                plane_normal_weight_, plane_distance_threshold_);
       get_plane(stable_cloud_filtered, stable_inliers_plane,
                 stable_cloud_plane);
       remove_plane(stable_cloud_normals, stable_inliers_plane,
                    stable_cloud_filtered2, stable_cloud_normals2);
       cylinder_seg(stable_cloud_filtered2, stable_cloud_normals2,
-                   stable_inliers_cylinder, stable_coefficients_cylinder);
+                   stable_inliers_cylinder, stable_coefficients_cylinder,
+                   cylinder_normal_weight_, cylinder_distance_threshold_);
       get_cylinder(stable_cloud_filtered, stable_cloud_filtered2,
                    stable_inliers_cylinder, stable_cloud_cylinder);
 
@@ -161,29 +176,95 @@ public:
                moving_max_z);
       normals_estimate(tree, moving_cloud_filtered, moving_cloud_normals);
       plane_seg(moving_cloud_filtered, moving_cloud_normals,
-                moving_inliers_plane, moving_coefficients_plane);
+                moving_inliers_plane, moving_coefficients_plane,
+                plane_normal_weight_, plane_distance_threshold_);
       get_plane(moving_cloud_filtered, moving_inliers_plane,
                 moving_cloud_plane);
       remove_plane(moving_cloud_normals, moving_inliers_plane,
                    moving_cloud_filtered2, moving_cloud_normals2);
       cylinder_seg(moving_cloud_filtered2, moving_cloud_normals2,
-                   moving_inliers_cylinder, moving_coefficients_cylinder);
+                   moving_inliers_cylinder, moving_coefficients_cylinder,
+                   cylinder_normal_weight_, cylinder_distance_threshold_);
       get_cylinder(moving_cloud_filtered, moving_cloud_filtered2,
                    moving_inliers_cylinder, moving_cloud_cylinder);
 
-      generateCylinderPointCloud(10, 0.3, 8, diff_radius,
-                                 stable_coefficients_cylinder,
-                                 stable_cloud_cylinder, stable_bbox_marker, stable_midline_marker);
+      generateCylinderPointCloud(
+          10, 0.3, 8, diff_radius, stable_coefficients_cylinder,
+          stable_cloud_cylinder, stable_bbox_marker, stable_midline_marker);
 
-      generateCylinderPointCloud(10, 0.3, 8, diff_radius,
-                                 moving_coefficients_cylinder,
-                                 moving_cloud_cylinder, moving_bbox_marker, moving_midline_marker);
+      generateCylinderPointCloud(
+          10, 0.3, 8, diff_radius, moving_coefficients_cylinder,
+          moving_cloud_cylinder, moving_bbox_marker, moving_midline_marker);
+
+      std::string x_output =
+          savePartNum(100 * (stable_bbox_marker.pose.position.x -
+                                moving_bbox_marker.pose.position.x));
+      x_distance_marker.text =
+          "Distance in X axis:  " + x_output + " cm"; // Set the text you want to display
+      marker_pub.publish(x_distance_marker);
+
+      std::string z_output =
+          savePartNum(100 * (stable_bbox_marker.pose.position.z -
+                                moving_bbox_marker.pose.position.z));
+      z_distance_marker.text =
+          "Distance in Z axis:  " + z_output + " cm"; // Set the text you want to display
+      marker_pub.publish(z_distance_marker);
 
       // 重置计数器和累积点云
       point_cloud_count = 0;
       accumulated_cloud->clear();
     }
   }
+  visualization_msgs::Marker setMarker(std::string frame_id, ros::Time ts,
+                                       std::string ns, int id,
+                                       std::string axis) {
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = frame_id;
+    ; // Set the appropriate frame ID
+    marker.header.stamp = ts;
+
+    marker.ns = "ns";
+    marker.id = id;
+    marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+    marker.action = visualization_msgs::Marker::ADD;
+
+    marker.pose.position.x = 0.0;
+    marker.pose.position.y = 0.0;
+    marker.pose.position.z = 0.0;
+    marker.pose.orientation.w = 0.0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+
+    marker.scale.x = 1.0; // Set the text scale
+    marker.scale.y = 1.0;
+    marker.scale.z = 1.0;
+
+    marker.color.r = 0.0; // Set text color (red in this example)
+    marker.color.g = 0.0;
+    marker.color.b = 0.0;
+    marker.color.a = 1.0; // Set alpha (1.0 is fully opaque)
+
+    if(axis == "x"){
+      marker.pose.position.z = 2.0;
+      marker.color.r = 1.0;
+    }
+    if(axis == "z"){
+      marker.pose.position.z = 3.0;
+      marker.color.b = 1.0;
+    }
+    
+    return marker;
+  };
+  std::string savePartNum(double num){
+    std::string output = std::to_string(num);
+    int decimal_places = 2; // number of decimal places to keep
+    size_t decimal_point = output.find('.');
+    if (decimal_point != std::string::npos && decimal_point + decimal_places < output.size()) {
+        output.erase(decimal_point + decimal_places + 1, std::string::npos);
+    }
+    return output;
+  };
   void cloudPre(pcl::PointCloud<PointT>::Ptr input_cloud,
                 pcl::PointCloud<PointT>::Ptr output_cloud, double min_x,
                 double max_x, double min_y, double max_y, double min_z,
@@ -200,13 +281,15 @@ public:
   void plane_seg(pcl::PointCloud<PointT>::Ptr input_cloud,
                  pcl::PointCloud<pcl::Normal>::Ptr input_normals,
                  pcl::PointIndices::Ptr output_inliers_plane,
-                 pcl::ModelCoefficients::Ptr output_coefficients_plane) {
+                 pcl::ModelCoefficients::Ptr output_coefficients_plane,
+                 double plane_normal_weight = 0.1,
+                 double plane_distance_threshold = 0.02) {
     seg.setOptimizeCoefficients(true);
     seg.setModelType(pcl::SACMODEL_NORMAL_PLANE);
-    seg.setNormalDistanceWeight(0.1);
+    seg.setNormalDistanceWeight(plane_normal_weight);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setMaxIterations(100);
-    seg.setDistanceThreshold(0.02); // 0.03
+    seg.setDistanceThreshold(plane_distance_threshold); // 0.03
     seg.setInputCloud(input_cloud);
     seg.setInputNormals(input_normals);
     seg.segment(*output_inliers_plane, *output_coefficients_plane);
@@ -238,13 +321,15 @@ public:
   void cylinder_seg(pcl::PointCloud<PointT>::Ptr input_cloud,
                     pcl::PointCloud<pcl::Normal>::Ptr input_normals,
                     pcl::PointIndices::Ptr output_inliers_cylinder,
-                    pcl::ModelCoefficients::Ptr output_coefficients_cylinder) {
+                    pcl::ModelCoefficients::Ptr output_coefficients_cylinder,
+                    double cylinder_normal_weight = 0.1,
+                    double cylinder_distance_threshold = 0.3) {
     seg.setOptimizeCoefficients(true);
     seg.setModelType(pcl::SACMODEL_CYLINDER);
     seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setNormalDistanceWeight(0.1);
+    seg.setNormalDistanceWeight(cylinder_normal_weight);
     seg.setMaxIterations(10000);
-    seg.setDistanceThreshold(0.3); // 0.05
+    seg.setDistanceThreshold(cylinder_distance_threshold); // 0.05
     seg.setRadiusLimits(min_radius, max_radius);
     seg.setInputCloud(input_cloud);
     seg.setInputNormals(input_normals);
@@ -278,8 +363,8 @@ public:
       const double theta_num, const double diff_radius,
       pcl::ModelCoefficients::Ptr input_coefficients_cylinder,
       pcl::PointCloud<PointT>::Ptr input_cloud_cylinder,
-      visualization_msgs::Marker input_bbox_marker,
-      visualization_msgs::Marker input_midline_marker) {
+      visualization_msgs::Marker &input_bbox_marker,
+      visualization_msgs::Marker &input_midline_marker) {
     // 先构建轴线为Z轴的圆柱面点云
     int Num = theta_num;
     float inter = 2.0 * M_PI / Num;
@@ -364,17 +449,16 @@ public:
         input_bbox_marker.pose.position.x = position_OBB.x;
         input_bbox_marker.pose.position.y = position_OBB.y;
         input_bbox_marker.pose.position.z = position_OBB.z;
-        
+
         Eigen::Vector3d axis_vector(input_coefficients_cylinder->values[3],
-                                input_coefficients_cylinder->values[4],
-                                input_coefficients_cylinder->values[5]);
+                                    input_coefficients_cylinder->values[4],
+                                    input_coefficients_cylinder->values[5]);
         Eigen::Vector3d up_vector(0.0, 0.0, -1.0);
         Eigen::Vector3d right_vector = axis_vector.cross(up_vector);
         right_vector.normalized();
-        Eigen::Quaterniond q(Eigen::AngleAxisd(-1.0 * std::acos(axis_vector.dot(up_vector)), 
-                                              right_vector));
+        Eigen::Quaterniond q(Eigen::AngleAxisd(
+            -1.0 * std::acos(axis_vector.dot(up_vector)), right_vector));
         q.normalize();
-
 
         input_bbox_marker.pose.orientation.x = q.x();
         input_bbox_marker.pose.orientation.y = q.y();
@@ -388,7 +472,6 @@ public:
         input_bbox_marker.scale.z = std::abs(max_point_OBB.x - min_point_OBB.x);
 
         marker_pub.publish(input_bbox_marker);
-
 
         input_midline_marker.pose.position.x = position_OBB.x;
         input_midline_marker.pose.position.y = position_OBB.y;
@@ -456,9 +539,16 @@ MapGenerate::MapGenerate() {
   nh.param<double>("max_radius", max_radius, 1.5);
   nh.param<double>("diff_radius", diff_radius, 0.05);
 
-  pt_sub = nh.subscribe("/livox/lidar", 1,
-                        &MapGenerate::pointCloudCallback, this);
-  marker_pub = nh.advertise<visualization_msgs::Marker>("aim", 1);
+  nh.param<double>("plane_normal_weight", plane_normal_weight_, 0.1);
+  nh.param<double>("plane_distance_threshold", plane_distance_threshold_, 0.02);
+
+  nh.param<double>("cylinder_normal_weight", cylinder_normal_weight_, 0.1);
+  nh.param<double>("cylinder_distance_threshold", cylinder_distance_threshold_,
+                   0.3);
+
+  pt_sub =
+      nh.subscribe("/livox/lidar", 1, &MapGenerate::pointCloudCallback, this);
+  marker_pub = nh.advertise<visualization_msgs::Marker>("aim", 5);
 }
 
 void MapGenerate::cloudPre(pcl::PointCloud<PointT>::Ptr input_cloud,

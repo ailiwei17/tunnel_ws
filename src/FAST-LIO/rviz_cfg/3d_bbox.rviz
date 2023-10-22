@@ -6,9 +6,11 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Grid1
         - /Marker1
         - /PointCloud21
-        - /PointCloud21/Status1
+        - /Axes1
+        - /Axes1/Status1
       Splitter Ratio: 0.5
     Tree Height: 678
   - Class: rviz/Selection
@@ -60,6 +62,7 @@ Visualization Manager:
       Name: Marker
       Namespaces:
         "": true
+        text_markers: true
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -90,6 +93,15 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
+    - Alpha: 1
+      Class: rviz/Axes
+      Enabled: true
+      Length: 1
+      Name: Axes
+      Radius: 0.30000001192092896
+      Reference Frame: <Fixed Frame>
+      Show Trail: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -118,7 +130,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 10.511578559875488
+      Distance: 9.420321464538574
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -134,9 +146,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6203977465629578
+      Pitch: 0.8847967386245728
       Target Frame: <Fixed Frame>
-      Yaw: 5.740418910980225
+      Yaw: 0.21224170923233032
     Saved: ~
 Window Geometry:
   Displays:
