@@ -150,9 +150,12 @@ public:
       moving_midline_marker.color.b = 1.0;
       moving_midline_marker.color.a = 1.0; // Set the transparency
 
-      
-      visualization_msgs::Marker x_distance_marker = setMarker(msg->header.frame_id, msg->header.stamp, "x", 10, "x");
-      visualization_msgs::Marker z_distance_marker = setMarker(msg->header.frame_id, msg->header.stamp, "z", 11, "z");
+      visualization_msgs::Marker x_distance_marker =
+          setMarker(msg->header.frame_id, msg->header.stamp, "x", 10, "x");
+      visualization_msgs::Marker y_distance_marker =
+          setMarker(msg->header.frame_id, msg->header.stamp, "y", 11, "y");
+      visualization_msgs::Marker z_distance_marker =
+          setMarker(msg->header.frame_id, msg->header.stamp, "z", 12, "z");
 
       cloudPre(accumulated_cloud, stable_cloud_filtered, stable_min_x,
                stable_max_x, stable_min_y, stable_max_y, stable_min_z,
@@ -198,16 +201,23 @@ public:
 
       std::string x_output =
           savePartNum(100 * (stable_bbox_marker.pose.position.x -
-                                moving_bbox_marker.pose.position.x));
+                             moving_bbox_marker.pose.position.x));
       x_distance_marker.text =
-          "Distance in X axis:  " + x_output + " cm"; // Set the text you want to display
+          "X :  " + x_output + " cm"; // Set the text you want to display
       marker_pub.publish(x_distance_marker);
+
+      std::string y_output =
+          savePartNum(100 * (stable_bbox_marker.pose.position.y -
+                             moving_bbox_marker.pose.position.y));
+      y_distance_marker.text =
+          "Y* :  " + y_output + " cm"; // Set the text you want to display
+      marker_pub.publish(y_distance_marker);
 
       std::string z_output =
           savePartNum(100 * (stable_bbox_marker.pose.position.z -
-                                moving_bbox_marker.pose.position.z));
+                             moving_bbox_marker.pose.position.z));
       z_distance_marker.text =
-          "Distance in Z axis:  " + z_output + " cm"; // Set the text you want to display
+          "Z :  " + z_output + " cm"; // Set the text you want to display
       marker_pub.publish(z_distance_marker);
 
       // 重置计数器和累积点云
@@ -245,23 +255,28 @@ public:
     marker.color.b = 0.0;
     marker.color.a = 1.0; // Set alpha (1.0 is fully opaque)
 
-    if(axis == "x"){
+    if (axis == "x") {
       marker.pose.position.z = 2.0;
       marker.color.r = 1.0;
     }
-    if(axis == "z"){
+    if (axis == "y") {
       marker.pose.position.z = 3.0;
+      marker.color.g = 1.0;
+    }
+    if (axis == "z") {
+      marker.pose.position.z = 4.0;
       marker.color.b = 1.0;
     }
-    
+
     return marker;
   };
-  std::string savePartNum(double num){
+  std::string savePartNum(double num) {
     std::string output = std::to_string(num);
     int decimal_places = 2; // number of decimal places to keep
     size_t decimal_point = output.find('.');
-    if (decimal_point != std::string::npos && decimal_point + decimal_places < output.size()) {
-        output.erase(decimal_point + decimal_places + 1, std::string::npos);
+    if (decimal_point != std::string::npos &&
+        decimal_point + decimal_places < output.size()) {
+      output.erase(decimal_point + decimal_places + 1, std::string::npos);
     }
     return output;
   };
