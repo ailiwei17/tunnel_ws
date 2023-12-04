@@ -1,5 +1,7 @@
 #include <cmath>
+#include <fstream>
 #include <iostream>
+
 #include <pcl/ModelCoefficients.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
@@ -34,17 +36,22 @@
 
 #include <visualization_msgs/Marker.h>
 
+
+#include <utils.hpp>
+
 typedef pcl::PointXYZ PointT;
 
 class MapGenerate {
 public:
+  bool debug;
+  std::string filename;
+
   pcl::NormalEstimation<PointT, pcl::Normal> ne;
   pcl::SACSegmentationFromNormals<PointT, pcl::Normal> seg;
   pcl::ExtractIndices<PointT> extract;
   pcl::ExtractIndices<pcl::Normal> extract_normals;
   pcl::search::KdTree<PointT>::Ptr tree;
 
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
   pcl::PointCloud<PointT>::Ptr accumulated_cloud;
 
   pcl::PointCloud<PointT>::Ptr stable_cloud_filtered, moving_cloud_filtered;
@@ -72,16 +79,19 @@ public:
       moving_max_z;
 
   // 拟合
-  double cylinder_normal_weight_;
-  double cylinder_distance_threshold_;
+  double cylinder_normal_weight;
+  double cylinder_distance_threshold;
 
-  double plane_normal_weight_;
-  double plane_distance_threshold_;
+  double plane_normal_weight;
+  double plane_distance_threshold;
 
   ros::Subscriber pt_sub;
   ros::Publisher marker_pub;
 
-  int point_cloud_count = 0;
+  const int window_size = 15;
+
+  // 滑动窗口
+  std::deque<pcl::PointCloud<pcl::PointXYZ>::Ptr> point_cloud_queue;
 
   // 拟合参数
   double min_radius;
@@ -92,12 +102,25 @@ public:
 
   MapGenerate();
   void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg) {
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(
+        new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*msg, *cloud);
-    *accumulated_cloud += *cloud;
-    point_cloud_count++;
+    point_cloud_queue.push_back(cloud); // 将新的点云添加到队列末尾
+
+    // 如果队列大小超过了滑动窗口的大小，移除最老的点云
+    if (point_cloud_queue.size() > window_size) {
+      point_cloud_queue.pop_front();
+    }
 
     // 当接收到十次点云后执行操作
-    if (point_cloud_count >= 10) {
+    if (point_cloud_queue.size() >= window_size) {
+      pcl::PointCloud<pcl::PointXYZ>::Ptr accumulated_cloud(
+          new pcl::PointCloud<pcl::PointXYZ>);
+      // 将滑动窗口内的点云叠加起来
+      for (const auto &cloud_ptr : point_cloud_queue) {
+        *accumulated_cloud += *cloud_ptr;
+        std::cout << "point size:" << cloud_ptr->size() << std::endl;
+      }
       // 固定圆柱
       stable_bbox_marker.header.frame_id = msg->header.frame_id; // 设置坐标系
       stable_bbox_marker.header.stamp = msg->header.stamp;
@@ -163,14 +186,14 @@ public:
       normals_estimate(tree, stable_cloud_filtered, stable_cloud_normals);
       plane_seg(stable_cloud_filtered, stable_cloud_normals,
                 stable_inliers_plane, stable_coefficients_plane,
-                plane_normal_weight_, plane_distance_threshold_);
+                plane_normal_weight, plane_distance_threshold);
       get_plane(stable_cloud_filtered, stable_inliers_plane,
                 stable_cloud_plane);
       remove_plane(stable_cloud_normals, stable_inliers_plane,
                    stable_cloud_filtered2, stable_cloud_normals2);
       cylinder_seg(stable_cloud_filtered2, stable_cloud_normals2,
                    stable_inliers_cylinder, stable_coefficients_cylinder,
-                   cylinder_normal_weight_, cylinder_distance_threshold_);
+                   cylinder_normal_weight, cylinder_distance_threshold);
       get_cylinder(stable_cloud_filtered, stable_cloud_filtered2,
                    stable_inliers_cylinder, stable_cloud_cylinder);
 
@@ -180,23 +203,23 @@ public:
       normals_estimate(tree, moving_cloud_filtered, moving_cloud_normals);
       plane_seg(moving_cloud_filtered, moving_cloud_normals,
                 moving_inliers_plane, moving_coefficients_plane,
-                plane_normal_weight_, plane_distance_threshold_);
+                plane_normal_weight, plane_distance_threshold);
       get_plane(moving_cloud_filtered, moving_inliers_plane,
                 moving_cloud_plane);
       remove_plane(moving_cloud_normals, moving_inliers_plane,
                    moving_cloud_filtered2, moving_cloud_normals2);
       cylinder_seg(moving_cloud_filtered2, moving_cloud_normals2,
                    moving_inliers_cylinder, moving_coefficients_cylinder,
-                   cylinder_normal_weight_, cylinder_distance_threshold_);
+                   cylinder_normal_weight, cylinder_distance_threshold);
       get_cylinder(moving_cloud_filtered, moving_cloud_filtered2,
                    moving_inliers_cylinder, moving_cloud_cylinder);
 
       generateCylinderPointCloud(
-          10, 0.3, 8, diff_radius, stable_coefficients_cylinder,
+          10, 0.001, 8, diff_radius, stable_coefficients_cylinder,
           stable_cloud_cylinder, stable_bbox_marker, stable_midline_marker);
 
       generateCylinderPointCloud(
-          10, 0.3, 8, diff_radius, moving_coefficients_cylinder,
+          10, 0.001, 8, diff_radius, moving_coefficients_cylinder,
           moving_cloud_cylinder, moving_bbox_marker, moving_midline_marker);
 
       std::string x_output =
@@ -207,8 +230,10 @@ public:
       marker_pub.publish(x_distance_marker);
 
       std::string y_output =
-          savePartNum(100 * (stable_bbox_marker.pose.position.y -
-                             moving_bbox_marker.pose.position.y));
+          savePartNum(100 * (std::abs((stable_bbox_marker.pose.position.y -
+                                       moving_bbox_marker.pose.position.y)) -
+                             0.5 * std::abs(stable_bbox_marker.scale.z +
+                                            moving_bbox_marker.scale.z)));
       y_distance_marker.text =
           "Y* :  " + y_output + " cm"; // Set the text you want to display
       marker_pub.publish(y_distance_marker);
@@ -220,8 +245,14 @@ public:
           "Z :  " + z_output + " cm"; // Set the text you want to display
       marker_pub.publish(z_distance_marker);
 
+      std::cout << debug << std::endl;
+
+      if (debug) {
+        // Save data to CSV
+        utils::FileManager::saveToCSV(filename, x_output, y_output, z_output);
+      }
+
       // 重置计数器和累积点云
-      point_cloud_count = 0;
       accumulated_cloud->clear();
     }
   }
@@ -509,7 +540,6 @@ public:
 };
 
 MapGenerate::MapGenerate() {
-  cloud.reset(new pcl::PointCloud<pcl::PointXYZ>());
   accumulated_cloud.reset(new pcl::PointCloud<pcl::PointXYZ>());
   tree.reset(new pcl::search::KdTree<PointT>());
   stable_cloud_filtered.reset(new pcl::PointCloud<PointT>);
@@ -534,6 +564,8 @@ MapGenerate::MapGenerate() {
   moving_cloud_plane.reset(new pcl::PointCloud<PointT>());
   moving_cloud_cylinder.reset(new pcl::PointCloud<PointT>());
 
+  nh.param<bool>("debug", debug, false);
+
   nh.param<double>("stable_max_x", stable_max_x, 5.0);
   nh.param<double>("stable_min_x", stable_min_x, 0.0);
   nh.param<double>("stable_max_y", stable_max_y, 2.0);
@@ -554,12 +586,15 @@ MapGenerate::MapGenerate() {
   nh.param<double>("max_radius", max_radius, 1.5);
   nh.param<double>("diff_radius", diff_radius, 0.05);
 
-  nh.param<double>("plane_normal_weight", plane_normal_weight_, 0.1);
-  nh.param<double>("plane_distance_threshold", plane_distance_threshold_, 0.02);
+  nh.param<double>("plane_normal_weight", plane_normal_weight, 0.1);
+  nh.param<double>("plane_distance_threshold", plane_distance_threshold, 0.02);
 
-  nh.param<double>("cylinder_normal_weight", cylinder_normal_weight_, 0.1);
-  nh.param<double>("cylinder_distance_threshold", cylinder_distance_threshold_,
+  nh.param<double>("cylinder_normal_weight", cylinder_normal_weight, 0.1);
+  nh.param<double>("cylinder_distance_threshold", cylinder_distance_threshold,
                    0.3);
+
+  filename = "/home/liwei/tunnel_ws/result/output_data.csv";
+  utils::FileManager::fileReset(filename);
 
   pt_sub =
       nh.subscribe("/livox/lidar", 1, &MapGenerate::pointCloudCallback, this);
@@ -599,6 +634,7 @@ void MapGenerate::cloudPre(pcl::PointCloud<PointT>::Ptr input_cloud,
   sor.setStddevMulThresh(1.0);
   sor.filter(*output_cloud); // 将结果存储到 output_cloud
 }
+
 
 int main(int argc, char **argv) {
   ros::init(argc, argv, "map_generate");
