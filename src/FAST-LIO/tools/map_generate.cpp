@@ -36,7 +36,7 @@
 
 #include <visualization_msgs/Marker.h>
 
-
+#include <optimer.hpp>
 #include <utils.hpp>
 
 typedef pcl::PointXYZ PointT;
@@ -44,6 +44,8 @@ typedef pcl::PointXYZ PointT;
 class MapGenerate {
 public:
   bool debug;
+  bool optimal;
+
   std::string filename;
 
   pcl::NormalEstimation<PointT, pcl::Normal> ne;
@@ -92,6 +94,10 @@ public:
 
   // 滑动窗口
   std::deque<pcl::PointCloud<pcl::PointXYZ>::Ptr> point_cloud_queue;
+  int optimal_deque_size;
+  optimer::MeanFilter x_mean;
+  optimer::MeanFilter y_mean;
+  optimer::MeanFilter z_mean;
 
   // 拟合参数
   double min_radius;
@@ -108,12 +114,12 @@ public:
     point_cloud_queue.push_back(cloud); // 将新的点云添加到队列末尾
 
     // 如果队列大小超过了滑动窗口的大小，移除最老的点云
-    if (point_cloud_queue.size() > window_size) {
+    if (point_cloud_queue.size() > optimal_deque_size) {
       point_cloud_queue.pop_front();
     }
 
     // 当接收到十次点云后执行操作
-    if (point_cloud_queue.size() >= window_size) {
+    if (point_cloud_queue.size() >= optimal_deque_size) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr accumulated_cloud(
           new pcl::PointCloud<pcl::PointXYZ>);
       // 将滑动窗口内的点云叠加起来
@@ -225,22 +231,28 @@ public:
       std::string x_output =
           savePartNum(100 * (stable_bbox_marker.pose.position.x -
                              moving_bbox_marker.pose.position.x));
-      x_distance_marker.text =
-          "X :  " + x_output + " cm"; // Set the text you want to display
-      marker_pub.publish(x_distance_marker);
-
       std::string y_output =
           savePartNum(100 * (std::abs((stable_bbox_marker.pose.position.y -
                                        moving_bbox_marker.pose.position.y)) -
                              0.5 * std::abs(stable_bbox_marker.scale.z +
                                             moving_bbox_marker.scale.z)));
-      y_distance_marker.text =
-          "Y* :  " + y_output + " cm"; // Set the text you want to display
-      marker_pub.publish(y_distance_marker);
-
       std::string z_output =
           savePartNum(100 * (stable_bbox_marker.pose.position.z -
                              moving_bbox_marker.pose.position.z));
+      if(optimal){
+        x_mean.push(std::stod(x_output));
+        y_mean.push(std::stod(y_output));
+        z_mean.push(std::stod(z_output));
+        x_output = std::to_string(x_mean.get());
+        y_output = std::to_string(y_mean.get());
+        z_output = std::to_string(z_mean.get());
+      }
+      x_distance_marker.text =
+          "X :  " + x_output + " cm"; // Set the text you want to display
+      marker_pub.publish(x_distance_marker);
+      y_distance_marker.text =
+          "Y* :  " + y_output + " cm"; // Set the text you want to display
+      marker_pub.publish(y_distance_marker);
       z_distance_marker.text =
           "Z :  " + z_output + " cm"; // Set the text you want to display
       marker_pub.publish(z_distance_marker);
@@ -565,6 +577,13 @@ MapGenerate::MapGenerate() {
   moving_cloud_cylinder.reset(new pcl::PointCloud<PointT>());
 
   nh.param<bool>("debug", debug, false);
+  nh.param<bool>("optimal", optimal, false);
+  nh.param<int>("optimal_deque_size", optimal_deque_size, 5);
+  if (optimal) {
+    x_mean.init(optimal_deque_size);
+    y_mean.init(optimal_deque_size);
+    z_mean.init(optimal_deque_size);
+  }
 
   nh.param<double>("stable_max_x", stable_max_x, 5.0);
   nh.param<double>("stable_min_x", stable_min_x, 0.0);
@@ -634,7 +653,6 @@ void MapGenerate::cloudPre(pcl::PointCloud<PointT>::Ptr input_cloud,
   sor.setStddevMulThresh(1.0);
   sor.filter(*output_cloud); // 将结果存储到 output_cloud
 }
-
 
 int main(int argc, char **argv) {
   ros::init(argc, argv, "map_generate");
